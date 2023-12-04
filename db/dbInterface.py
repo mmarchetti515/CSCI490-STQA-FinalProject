@@ -24,7 +24,7 @@ class databaseInterface:
         self.__disconnect()
 
     def getEndpoints(self):
-        # returns list of all endpotnis in sensorEndpoints table
+        # returns list of all endpoints in sensorEndpoints table
         self.__connect()
 
         res = [] # will be an array of tuples
@@ -73,6 +73,19 @@ class databaseInterface:
         # 2nd param in tuple: sensorid/name
         # 3-5th params are: temp, humidity, pressure
         return res
+    
+    def getSensorDatapointsInOrderByID(self, id):
+        self.__connect()
+
+        res = []
+        cursor = self._conn.execute(sqlStr.getSensorDatapointsInOrderByID.format(id))
+
+        for datapoint in cursor:
+            res.append(datapoint)
+
+        self.__disconnect()
+
+        return res
 
     # **** Private methods **** #
     def __connect(self):
@@ -90,5 +103,5 @@ class databaseInterface:
             self._conn.execute(sqlStr.createSensorDataTable)
 
 # usage: init databaseInterface object, creates database file: public methods simplify transactions
-# x = databaseInterface()
+# x = databaseInterface(...)
 # x.publicfunction(...)

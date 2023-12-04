@@ -3,9 +3,9 @@
 createSensorEndpointTable = \
 """
 CREATE TABLE IF NOT EXISTS sensorEndpoints (
-    SENSORID    TEXT   PRIMARY KEY  NOT NULL    UNIQUE,
-    IP          TEXT                NOT NULL    UNIQUE,
-    PORTNUM     INT                 NOT NULL    UNIQUE
+    SENSORID    TEXT    PRIMARY KEY  NOT NULL    UNIQUE,
+    IP          TEXT                 NOT NULL    UNIQUE,
+    PORTNUM     INTEGER              NOT NULL
 )
 """
 
@@ -50,4 +50,9 @@ VALUES ('{0}', '{1}', '{2}', '{3}'
 getSensorDatapointsByID = \
 """
 SELECT * FROM sensorData WHERE SENSORID = '{0}'
+"""
+
+getSensorDatapointsInOrderByID = \
+"""
+SELECT * FROM sensorData WHERE SENSORID = '{0}' ORDER BY ENTRYNO DESC
 """
