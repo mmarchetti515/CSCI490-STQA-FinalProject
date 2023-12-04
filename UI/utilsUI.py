@@ -1,10 +1,11 @@
 import customtkinter         as ctk
 import CTkTable              as ctkT
+from tkinter import messagebox
 from   db import dbInterface as db
 import socket
 import struct
-import threading             as th
-from   time                  import sleep
+import threading               as th
+from   time                    import sleep
 
 class tabFrame(ctk.CTkFrame):
     def __init__(self, master, **kwargs): 
@@ -68,27 +69,18 @@ class configureviewHandler:
 
         # update sensor view list
 
-        self.__updateSensorListView("add")
         self.__updateDropdownMenu()
+
+        self.numSensors = len(self.db.getEndpoints())
+        self.__populateEndpointList()
 
     # ***** Private functions ***** #
     def __createObjects(self):
         self.value = [["Device Name",
                        "IP Address",
                        "Port"
-                       ]]
-        arr = self.db.getEndpoints()
-        yo = []
-        for ep in arr:
-            buff = []
-            for x in range(3):
-                buff.append(ep[x])
-            self.value.append(buff)
+                      ]]
 
-        """ self._dataView = ctk.CTkTextbox(master = self.ct,
-                                        width  = 1,
-                                        height = 1,
-                                        border_spacing = 20) """
         self._dataView          = ctkT.CTkTable(master = self.ct,
                                                 column = 3,
                                                 corner_radius=8,
@@ -152,10 +144,11 @@ class configureviewHandler:
                                                  width       = 100,
                                                  height      = 25,
                                                  fg_color    = "#4E6AE7",
-                                                 hover_color = "#3E55B9")
+                                                 hover_color = "#3E55B9",
+                                                 command     = self.__onRemoveSensorClick)
 
     def __drawObjects(self):
-        self._dataView.grid(row = 1, column = 1, sticky = "EW")
+        self._dataView.grid(row = 1, column = 1, sticky = "NE")
 
         # _subFrame 
         self._subFrame.grid(row = 1, column = 0, sticky = "nsew")
@@ -178,13 +171,32 @@ class configureviewHandler:
         sensorName     = self._addSensorNameEntry.get() 
         sensorIP       = self._addSensorIPEntry.get()
         sensorPort     = self._addSensorPortEntry.get()
-
-        if (sensorName != "" and sensorIP != "" and sensorPort != ""):
+        
+        # before adding a new row, verify that there won't be any clashes
+        dupFound = self.__checkForDuplicateEntries(sensorName, sensorIP)
+        if (sensorName != "" and sensorIP != "" and sensorPort != "" and dupFound == False):
             sensorPort = int(sensorPort)
             self.db.insertEndpoint(sensorName, sensorIP, sensorPort)
+            self.__updateTableContents()
+            self.__updateDropdownMenu()
+        else:
+            messagebox.showerror("Input Error", "Please enter valid values for the new device.")
 
-        self.__updateSensorListView("add")
-        self.__updateDropdownMenu()
+    def __onRemoveSensorClick(self):
+        self._oRSC_sensorName = self._removeSensorOptMenu.get()
+        if self._oRSC_sensorName != "Select sensor...":
+            self.db.deleteEndpointByLocation(self._oRSC_sensorName)
+            self.__updateTableContents()
+            self.__updateDropdownMenu()
+        else:
+            messagebox.showerror("Input Error", "Please select a device to be removed")
+
+    def __populateEndpointList(self):
+        if(self.numSensors > 0):
+            res = self.db.getEndpoints()
+            for index, endpoint in enumerate(res):
+                    self._dataView.add_row([endpoint[0], endpoint[1], endpoint[2]], index+1)
+
 
     def __setupFrame(self):
         self.ct.grid_rowconfigure((0,2), weight = 1, uniform = "letterbox")
@@ -206,21 +218,28 @@ class configureviewHandler:
         
         self._removeSensorOptMenu.configure(values = res)
 
-    def __updateSensorListView(self, updateType):
-        if updateType == "add":
-            arr = self.db.getEndpoints()
-            newRow = []
-            for ep in arr:
-                buff = []
-                for x in range(3):
-                    buff.append(ep[x])
-                newRow = buff
-                self.value.append(buff)
-            print(self.value)
-            rowCtr = len(self.value)
-            self._dataView.add_row(newRow)
-        if updateType == "delete":
-            print("delete stuff")
+    # completely new function for adding a device to the table
+    def __updateTableContents(self):
+        # clean the table
+        if self.numSensors > 0:
+            for i in range(1, self.numSensors+1):
+                self._dataView.delete_row(i)
+        # now that the table is clean, we can repopulate
+        arr = self.db.getEndpoints()
+        self.numSensors = len(arr)
+        if self.numSensors > 0:
+            for index, endpoint in enumerate(arr):
+                self._dataView.add_row([endpoint[0], endpoint[1], endpoint[2]], index+1)
+
+    def __checkForDuplicateEntries(self, deviceID, ipAddr):
+        arr = self.db.getEndpoints()
+        self.numSensors = len(arr)
+        if self.numSensors > 0:
+            for index, endpoint in enumerate(arr):
+                if endpoint[0] == deviceID or endpoint[1] == ipAddr:
+                    return True
+                index+1
+        return False
 
 class viewdataHandler:
     # takes viewData tab from tab view and treats it like a frame
