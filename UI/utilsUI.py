@@ -194,8 +194,6 @@ class configureviewHandler:
     def __setupSubFrame(self):
         self._subFrame = ctk.CTkFrame(master = self.ct, fg_color = "transparent")
         self._subFrame.grid_columnconfigure((0,1), weight = 1, uniform = "sfc")
-    
-    def __updateSensorListView(self, updateType):
 
     def __updateDropdownMenu(self):
         self._removeSensorOptMenu.set("Select sensor...")
@@ -222,9 +220,6 @@ class configureviewHandler:
             self._dataView.add_row(newRow)
         if updateType == "delete":
             print("delete stuff")
-
-
-
 
 class viewdataHandler:
     # takes viewData tab from tab view and treats it like a frame
