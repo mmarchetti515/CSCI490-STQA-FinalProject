@@ -1,5 +1,6 @@
 import customtkinter         as ctk
 import CTkTable              as ctkT
+from tkinter import messagebox
 from   db import dbInterface as db
 import socket
 import struct
@@ -75,20 +76,13 @@ class configureviewHandler:
         self.value = [["Device Name",
                        "IP Address",
                        "Port"
-                       ]]
-        arr = self.db.getEndpoints()
-        yo = []
-        for ep in arr:
-            buff = []
-            for x in range(3):
-                buff.append(ep[x])
-            self.value.append(buff)
+                      ]]
 
         """ self._dataView = ctk.CTkTextbox(master = self.ct,
                                         width  = 1,
                                         height = 1,
                                         border_spacing = 20) """
-        self._dataView          = ctkT.CTkTable(master = self._subFrame,
+        self._dataView          = ctkT.CTkTable(master = self.ct,
                                                 column = 3,
                                                 corner_radius=8,
                                                 hover_color='#a8a8a8',
@@ -151,7 +145,8 @@ class configureviewHandler:
                                                  width       = 100,
                                                  height      = 25,
                                                  fg_color    = "#4E6AE7",
-                                                 hover_color = "#3E55B9")
+                                                 hover_color = "#3E55B9",
+                                                 command     = self.__onRemoveSensorClick)
 
     def __drawObjects(self):
         self._dataView.grid(row = 1, column = 1, sticky = "E")
@@ -177,13 +172,25 @@ class configureviewHandler:
         sensorName     = self._addSensorNameEntry.get() 
         sensorIP       = self._addSensorIPEntry.get()
         sensorPort     = self._addSensorPortEntry.get()
+        print("value: ", self.value)
 
         if (sensorName != "" and sensorIP != "" and sensorPort != ""):
             sensorPort = int(sensorPort)
             self.db.insertEndpoint(sensorName, sensorIP, sensorPort)
+            self.__updateSensorListView("add")
+            self.__updateDropdownMenu()
+        else:
+            messagebox.showerror("Input Error", "Please enter valid values for this shit topG")
 
-        self.__updateSensorListView("add")
-        self.__updateDropdownMenu()
+    def __onRemoveSensorClick(self):
+        self._oRSC_sensorName = self._removeSensorOptMenu.get()
+        if self._oRSC_sensorName != "Select sensor...":  # this is shit, change to matching against the table ideally
+            self.db.deleteEndpointByLocation(self._oRSC_sensorName)
+            self.__updateSensorListView("remove")
+            self.__updateDropdownMenu()
+        else:
+            messagebox.showerror("Input Error", "Please select a device to be removed")
+
 
     def __setupFrame(self):
         self.ct.grid_rowconfigure((0,2), weight = 1, uniform = "letterbox")
@@ -206,6 +213,7 @@ class configureviewHandler:
         self._removeSensorOptMenu.configure(values = res)
 
     def __updateSensorListView(self, updateType):
+        self.__checkForEmptyRows()
         if updateType == "add":
             arr = self.db.getEndpoints()
             newRow = []
@@ -215,11 +223,22 @@ class configureviewHandler:
                     buff.append(ep[x])
                 newRow = buff
                 self.value.append(buff)
-            print(self.value)
-            rowCtr = len(self.value)
+            print(self.value)    # DEBUG
             self._dataView.add_row(newRow)
-        if updateType == "delete":
-            print("delete stuff")
+        if updateType == "remove":
+            index = next((i for i, sublist in enumerate(self.value) if len(sublist) > 0 and sublist[0] == self._oRSC_sensorName), -1)
+            print(index)    # DEBUG
+            self._dataView.delete_row(index)
+
+    # for some reason, empty rows can populate - here's a fun little fix :)
+    def __checkForEmptyRows(self):
+        indeces = []
+        ctr = 0
+        while ctr < len(self.value):
+            if not self.value[ctr]:
+                indeces.append(ctr)
+            ctr += 1
+        self._dataView.delete_rows(indeces)
 
 class viewdataHandler:
     # takes viewData tab from tab view and treats it like a frame
