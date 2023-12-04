@@ -3,8 +3,8 @@ import CTkTable              as ctkT
 from   db import dbInterface as db
 import socket
 import struct
-import threading               as th
-from   time                    import sleep
+import threading             as th
+from   time                  import sleep
 
 class tabFrame(ctk.CTkFrame):
     def __init__(self, master, **kwargs): 
@@ -53,6 +53,7 @@ class configureviewHandler:
         self._addSensorPortLabel        = None
         self._addSensorPortEntry        = None
         self._addSensorButton           = None
+
         self._removeSensorHeader        = None
         self._removeSensorLabel         = None
         self._removeSensorOptMenu       = None
@@ -88,7 +89,7 @@ class configureviewHandler:
                                         width  = 1,
                                         height = 1,
                                         border_spacing = 20) """
-        self._dataView          = ctkT.CTkTable(master = self._subFrame,
+        self._dataView          = ctkT.CTkTable(master = self.ct,
                                                 column = 3,
                                                 corner_radius=8,
                                                 hover_color='#a8a8a8',
@@ -154,7 +155,7 @@ class configureviewHandler:
                                                  hover_color = "#3E55B9")
 
     def __drawObjects(self):
-        self._dataView.grid(row = 1, column = 1, sticky = "E")
+        self._dataView.grid(row = 1, column = 1, sticky = "EW")
 
         # _subFrame 
         self._subFrame.grid(row = 1, column = 0, sticky = "nsew")
@@ -169,7 +170,7 @@ class configureviewHandler:
         self._addSensorButton          .grid(row = 7, column = 0, sticky = "NS",   padx = 20)
 
         self._removeSensorHeader       .grid(row = 0, column = 1, sticky = "NSEW", padx = 20)
-        self._removeSensorHeader       .grid(row = 1, column = 1, sticky = "NSW",  padx = 20)
+        self._removeSensorLabel        .grid(row = 1, column = 1, sticky = "NSW",  padx = 20)
         self._removeSensorOptMenu      .grid(row = 2, column = 1, sticky = "NSEW", padx = 20, pady = (0,10))
         self._removeSensorButton       .grid(row = 4, column = 1, sticky = "N",    padx = 20, rowspan = 1)
 
@@ -187,7 +188,7 @@ class configureviewHandler:
 
     def __setupFrame(self):
         self.ct.grid_rowconfigure((0,2), weight = 1, uniform = "letterbox")
-        self.ct.grid_rowconfigure(    1, weight = 2)
+        self.ct.grid_rowconfigure(    1, weight = 1)
         
         self.ct.grid_columnconfigure((0,1), weight = 1, uniform = "cvh")
     
@@ -195,8 +196,6 @@ class configureviewHandler:
         self._subFrame = ctk.CTkFrame(master = self.ct, fg_color = "transparent")
         self._subFrame.grid_columnconfigure((0,1), weight = 1, uniform = "sfc")
     
-    def __updateSensorListView(self, updateType):
-
     def __updateDropdownMenu(self):
         self._removeSensorOptMenu.set("Select sensor...")
         self._removeSensorOptMenu["borderwidth"] = 0
@@ -223,9 +222,6 @@ class configureviewHandler:
         if updateType == "delete":
             print("delete stuff")
 
-
-
-
 class viewdataHandler:
     # takes viewData tab from tab view and treats it like a frame
     def __init__(self, viewDataTab, dbObj):
@@ -236,7 +232,6 @@ class viewdataHandler:
         self.db = dbObj
 
         self._dataView        = None
-        self._graphView       = None
         self._startStopButton = None
 
         # Threading
@@ -246,7 +241,6 @@ class viewdataHandler:
         self.__setupFrame()
         self.__createObjects()
         self.__drawObjects()
-
 
     # ***** Private functions ***** # 
     def __createObjects(self):
@@ -259,10 +253,10 @@ class viewdataHandler:
                                                hover_color = "#3E55B9",
                                                text        = "Start",
                                                command     = self.__onButtonClick)
-
+        
     def __dataLoop(self):
         while (self._keepThreadAlive):
-            print("DEBUG: [Line 238]: utilsUI.py: class viewdataHandler] Thread: " + str(th.get_ident()))
+            print("DEBUG: [Line: utilsUI.py: class viewdataHandler] Thread: " + str(th.get_ident()))
             self.__getData()
             self._root.event_generate("<<threadEvent>>", when = "tail", state = 123)
             
@@ -275,7 +269,7 @@ class viewdataHandler:
     def __getData(self):
         # 1: Get array of endpoints
         self._startStopButton.configure(state = "disabled")
-        print("DEBUG: __NEWgetData(): class viewdataHandler Thread: " + str(th.get_ident()))
+        print("DEBUG: __getData(): class viewdataHandler Thread: " + str(th.get_ident()))
         endpoints = self.db.getEndpoints()
         
         # ***** sub-functions ***** # 
