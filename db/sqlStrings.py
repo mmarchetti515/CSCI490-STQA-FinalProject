@@ -5,7 +5,8 @@ createSensorEndpointTable = \
 CREATE TABLE IF NOT EXISTS sensorEndpoints (
     SENSORID    TEXT   PRIMARY KEY  NOT NULL    UNIQUE,
     IP          TEXT                NOT NULL    UNIQUE,
-    PORTNUM     INT                 NOT NULL    UNIQUE
+    PORTNUM     INT                 NOT NULL    UNIQUE,
+    ISACTIVE    BOOL                NOT NULL
 )
 """
 
@@ -25,13 +26,13 @@ CREATE TABLE IF NOT EXISTS sensorData (
 # ***** Sensor Endpoint Table Ops ***** #
 insertSensorEndpoint = \
 """
-INSERT INTO sensorEndpoints(SENSORID, IP, PORTNUM)
-VALUES ('{0}', '{1}', '{2}')
+INSERT INTO sensorEndpoints(SENSORID, IP, PORTNUM, ISACTIVE)
+VALUES ('{0}', '{1}', {2}, {3})
 """
 
 getSensorEndpoints = \
 """
-SELECT SENSORID, IP, PORTNUM from sensorEndpoints
+SELECT SENSORID, IP, PORTNUM, ISACTIVE from sensorEndpoints
 """
 
 deleteSensorEndpointByLocation = \

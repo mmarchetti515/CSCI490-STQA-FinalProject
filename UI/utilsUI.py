@@ -1,5 +1,4 @@
 import customtkinter         as ctk
-import CTkTable              as ctkT
 from   db import dbInterface as db
 import socket
 import struct
@@ -58,6 +57,9 @@ class configureviewHandler:
         self._addSensorPortLabel        = None
         self._addSensorPortEntry        = None
 
+        self._addSensorIsActiveLabel    = None
+        self._addSensorIsActiveCheckBox = None
+
         self._addSensorButton           = None
 
         self.__setupFrame()
@@ -68,34 +70,14 @@ class configureviewHandler:
         self.__drawObjects()
 
         # update sensor view list
-        self.__updateSensorListView("add")
+        self.__updateSensorListView()
 
     # ***** Private functions ***** #
     def __createObjects(self):
-        self.value = [["Device Name",
-                       "IP Address",
-                       "Port"
-                       ]]
-        arr = self.db.getEndpoints()
-        yo = []
-        for ep in arr:
-            buff = []
-            for x in range(3):
-                buff.append(ep[x])
-            self.value.append(buff)
-
-        """ self._dataView = ctk.CTkTextbox(master = self.ct,
+        self._dataView = ctk.CTkTextbox(master = self.ct,
                                         width  = 1,
                                         height = 1,
-                                        border_spacing = 20) """
-        self._dataView          = ctkT.CTkTable(master = self._subFrame,
-                                                column = 3,
-                                                corner_radius=8,
-                                                hover_color='#a8a8a8',
-                                                color_phase="horizontal",
-                                                colors=['#4a4a4a', '#737373'],
-                                                header_color='#2b2b2b',
-                                                values = self.value)
+                                        border_spacing = 20)
         
         self._addSensorHeader    = ctk.CTkLabel(master = self._subFrame,
                                                 text   = "Add Sensor",
@@ -121,6 +103,15 @@ class configureviewHandler:
                                                 width = 1,
                                                 height = 25,
                                                 border_width = 2)
+        self._addSensorIsActiveLabel = ctk.CTkLabel(master = self._subFrame,
+                                                    text   = "Is Active:",
+                                                    font   = ("Inter", 12.5, "bold"))
+        self._addSensorIsActiveCheckBox = ctk.CTkCheckBox(master = self._subFrame,
+                                                          width  = 1,
+                                                          height = 20,
+                                                          border_width = 2,
+                                                          onvalue=True,
+                                                          offvalue=False)
         self._addSensorButton    = ctk.CTkButton(master = self._subFrame,
                                                  text   = "Add",
                                                  width       = 100,
@@ -130,7 +121,7 @@ class configureviewHandler:
                                                  command     = self.__onAddSensorClick)
 
     def __drawObjects(self):
-        self._dataView.grid(row = 1, column = 1, sticky = "E")
+        self._dataView.grid(row = 1, column = 1, sticky = "nsew")
 
         # _subFrame 
         self._subFrame.grid(row = 1, column = 0, sticky = "nsew")
@@ -142,18 +133,21 @@ class configureviewHandler:
         self._addSensorIPEntry      .grid(row = 4, column = 0, sticky = "NSEW", padx = 10, pady = (0,10))
         self._addSensorPortLabel    .grid(row = 5, column = 0, sticky = "NSW",  padx = 10)
         self._addSensorPortEntry    .grid(row = 6, column = 0, sticky = "NSEW", padx = 10, pady = (0,20))
+        self._addSensorIsActiveLabel.grid(row = 7, column = 0, sticky = "NSW",  padx = 10)
+        self._addSensorIsActiveCheckBox.grid(row = 8, column = 0, sticky = "NSEW", padx = 10, pady = (0,20)) # will have to check
         self._addSensorButton       .grid(row = 9, column = 0, sticky = "NS",   padx = 10)
 
     def __onAddSensorClick(self):
         sensorName     = self._addSensorNameEntry.get() 
         sensorIP       = self._addSensorIPEntry.get()
         sensorPort     = self._addSensorPortEntry.get()
+        sensorIsActive = self._addSensorIsActiveCheckBox.get()
 
         if (sensorName != "" and sensorIP != "" and sensorPort != ""):
             sensorPort = int(sensorPort)
-            self.db.insertEndpoint(sensorName, sensorIP, sensorPort)
+            self.db.insertEndpoint(sensorName, sensorIP, sensorPort, sensorIsActive)
 
-        self.__updateSensorListView("add")
+        self.__updateSensorListView()
 
     def __setupFrame(self):
         self.ct.grid_rowconfigure((0,2), weight = 1, uniform = "letterbox")
@@ -165,23 +159,15 @@ class configureviewHandler:
         self._subFrame = ctk.CTkFrame(master = self.ct, fg_color = "transparent")
         self._subFrame.grid_columnconfigure((0,1), weight = 1, uniform = "sfc")
     
-    def __updateSensorListView(self, updateType):
-        if updateType == "add":
-            arr = self.db.getEndpoints()
-            newRow = []
-            for ep in arr:
-                buff = []
-                for x in range(3):
-                    buff.append(ep[x])
-                newRow = buff
-                self.value.append(buff)
-            print(self.value)
-            rowCtr = len(self.value)
-            self._dataView.add_row(newRow)
-        if updateType == "delete":
-            print("delete stuff")
+    def __updateSensorListView(self):
+        self._dataView.delete("0.0", "end")
+        self._dataView.insert("end", "Sensor List:\n------------\n")
 
-
+        arr = self.db.getEndpoints()
+        for i, ep in enumerate(arr):
+            string = ""
+            string += f"[{i+1}]     Name:{ep[0]}\t\tIP: {ep[1]}\t\tPort: {ep[2]}\t\tIsActive: {ep[3]}\n"
+            self._dataView.insert("end", string)
 
 class viewdataHandler:
     # takes viewData tab from tab view and treats it like a frame

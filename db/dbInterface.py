@@ -13,11 +13,11 @@ class databaseInterface:
         self.__disconnect()
 
     # **** Public methods **** #
-    def insertEndpoint(self, id, ip, portnum):
+    def insertEndpoint(self, id, ip, portnum, isactive):
         # add sensor endpoint to sensorEndpoints table
         self.__connect()
         if (portnum > 1023):
-            self._conn.execute(sqlStr.insertSensorEndpoint.format(id, ip, portnum))
+            self._conn.execute(sqlStr.insertSensorEndpoint.format(id, ip, portnum, isactive))
 
         self._conn.commit()
         
