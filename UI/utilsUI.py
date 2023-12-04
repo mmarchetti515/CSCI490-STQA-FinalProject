@@ -168,8 +168,8 @@ class configureviewHandler:
             string = ""
             string += f"[{i+1}]     Name:{ep[0]}\t\tIP: {ep[1]}\t\tPort: {ep[2]}\t\tIsActive: {ep[3]}\n"
             self._dataView.insert("end", string)
-#69
-class viewdataHandler6:
+
+class viewdataHandler:
     # takes viewData tab from tab view and treats it like a frame
     def __init__(self, viewDataTab):
         self.vd    = viewDataTab
