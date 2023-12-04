@@ -32,8 +32,14 @@ class tabFrame(ctk.CTkFrame):
         self.configureView = configureviewHandler(self.tabView.tab("Configure"), self.db)
         self.dataView      =      viewdataHandler(self.tabView.tab("View Data"), self.db)
 
+        self.tabView.configure(command = lambda: self.__tabCallback(self.tabView.get()))
+
     def __drawObjects(self):
         self.tabView.grid(row = 0, column = 0, sticky = "nsew", padx = 10, pady = (0, 10))
+
+    def __tabCallback(self, n):
+        if (n == "View Data"):
+            self.dataView.refreshDataView() 
 
 class configureviewHandler:
     def __init__(self, configureTab, dbObj):
@@ -73,10 +79,7 @@ class configureviewHandler:
 
     # ***** Private functions ***** #
     def __createObjects(self):
-        self.value = [["Device Name",
-                       "IP Address",
-                       "Port"
-                       ]]
+        self.value = [["Device Name", "IP Address", "Port"]]
         arr = self.db.getEndpoints()
         yo = []
         for ep in arr:
@@ -85,10 +88,6 @@ class configureviewHandler:
                 buff.append(ep[x])
             self.value.append(buff)
 
-        """ self._dataView = ctk.CTkTextbox(master = self.ct,
-                                        width  = 1,
-                                        height = 1,
-                                        border_spacing = 20) """
         self._dataView          = ctkT.CTkTable(master = self.ct,
                                                 column = 3,
                                                 corner_radius=8,
@@ -231,20 +230,43 @@ class viewdataHandler:
         # this class will be accessing the db
         self.db = dbObj
 
+        # "Prime" initial num of sensors in db
+        self._numOfSensors = len(self.db.getEndpoints())
+
         self._dataView        = None
         self._startStopButton = None
 
-        # Threading
+        # "Prime" the thread
         self._loopThread      = th.Thread(target = self.__dataLoop, daemon = True) 
         self._keepThreadAlive = False
-        
+
         self.__setupFrame()
         self.__createObjects()
         self.__drawObjects()
+        self.__populateDataView()
+
+    # clear list for redraw
+    def refreshDataView(self):
+        if (self._numOfSensors > 0):
+            for rowNum in range(1, self._numOfSensors+1):
+                try:
+                    self._dataView.delete_row(rowNum)
+                except: pass
+
+        # get new list of sensors from db
+        res = self.db.getEndpoints()
+        self._numOfSensors = len(res)
+        if (self._numOfSensors > 0):
+            for index, endpoint in enumerate(res):
+                self._dataView.add_row([endpoint[0], "N/A", "N/A", "N/A", "N/A"], index+1)
 
     # ***** Private functions ***** # 
     def __createObjects(self):
-        self._dataView        = ctk.CTkTextbox(master     = self.vd)
+        self._dataView       = ctkT.CTkTable(master = self.vd,
+                                             row    = 1,
+                                             column = 4,
+                                             values = [["Sensor","Temp","Humidity","Pressure"]])
+        
 
         self._startStopButton = ctk.CTkButton (master      = self.vd,
                                                width       = 150,
@@ -257,13 +279,13 @@ class viewdataHandler:
     def __dataLoop(self):
         while (self._keepThreadAlive):
             print("DEBUG: [Line: utilsUI.py: class viewdataHandler] Thread: " + str(th.get_ident()))
-            self.__getData()
+            self.__getData() # debug disable for updating ui
             self._root.event_generate("<<threadEvent>>", when = "tail", state = 123)
-            
-            sleep(5)
+
+            sleep(3)
             
     def __drawObjects(self):
-        self._dataView       .grid(row = 0, column = 0, sticky = "nsew", padx = 10 , pady = 20)
+        self._dataView       .grid(row = 0, column = 0, sticky = "EW", padx = 10 , pady = 20)
         self._startStopButton.grid(row = 1, column = 0, columnspan = 2)
 
     def __getData(self):
@@ -292,21 +314,23 @@ class viewdataHandler:
                 unpackedData = struct.unpack("<3d", response)
                 
                 # WIP WIP WIP display data here UI stuff WIP WIP WIP
-                string = ""
-                string += f"{id}\t"
-
-                self._dataView.insert("end", f"Data from {id}:\n")
-                self._dataView.insert("end", "Temperature:   " + str(round(unpackedData[0], 2)) + " C\n")
-                self._dataView.insert("end", "Rel. Humidity: " + str(round(unpackedData[1], 2)) + " %\n")
-                self._dataView.insert("end", "Presssure:     " + str(round(unpackedData[2], 2)) + " hPa\n\n")
-                self._dataView.see("end")
 
             clientSocket.close()
+
+            temp = round(unpackedData[0], 2) # C
+            humi = round(unpackedData[1], 2) # rel hum %
+            pres = round(unpackedData[2], 2) # hPa
+            return [temp, humi, pres]
+            
 
         # 2: We have our endpoints 
         for endpoint in endpoints:
             socketTuple = (endpoint[1], endpoint[2])
-            pingEndpoint(endpoint[0])
+            id          =  endpoint[0] 
+            arr = pingEndpoint(id)
+            self.db.addSensorData(id, arr[0], arr[1], arr[2])
+            print(id, arr[0], arr[1], arr[2])
+
         self._startStopButton.configure(state = "normal")
     
     def __onButtonClick(self):
@@ -328,6 +352,16 @@ class viewdataHandler:
 
             self._startStopButton.configure(state = "normal", text = "Start")
 
+    def __populateDataView(self):
+        if (self._numOfSensors > 0):
+            # get new list of sensors from db
+            res = self.db.getEndpoints()
+            for index, endpoint in enumerate(res):
+                self._dataView.add_row([endpoint[0], "N/A", "N/A", "N/A", "N/A"], index+1)
+
+
+        
+
     def __resetThread(self): 
         self._loopThread = None
         self._loopThread = th.Thread(target = self.__dataLoop, daemon = True)  
@@ -336,5 +370,4 @@ class viewdataHandler:
         self.vd.grid_rowconfigure(0, weight = 5)
         self.vd.grid_rowconfigure(1, weight = 1)
 
-        self.vd.grid_columnconfigure(0, weight = 1, uniform = "data")
-        self.vd.grid_columnconfigure(1, weight = 1, uniform = "data")
+        self.vd.grid_columnconfigure(0, weight = 1)
