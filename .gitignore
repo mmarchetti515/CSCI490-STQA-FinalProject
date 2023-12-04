@@ -1,0 +1,11 @@
+# Ignore env490 directory and its contents
+/env490/
+
+# Ignore __pycache__ directory inside db
+/db/__pycache__/
+
+# Ignore __pycache__ directory inside UI
+/UI/__pycache__/
+
+# Ignore files ending in .db in any directory
+*.db
