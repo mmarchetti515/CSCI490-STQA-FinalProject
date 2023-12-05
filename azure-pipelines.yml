@@ -7,7 +7,7 @@ trigger:
 - develop
 
 pool:
-  vmImage: ubuntu-latest
+  vmImage: windows-latest
 strategy:
   matrix:
     Python27:
@@ -31,6 +31,19 @@ steps:
   displayName: 'Install dependencies'
 
 - script: |
-    pip install pytest pytest-azurepipelines
-    pytest
-  displayName: 'pytest'
+    pip install build
+    pip install twine
+  displayName: 'Install build and twine'
+
+- script: |
+    python -m build -w
+  displayName: 'Python build'
+
+- task: TwineAuthenticate@1
+  inputs:
+    artifactFeed: <CSCI490FinalProject/DesktopAppDistro>
+  displayName: 'Twine Authenticate'
+
+- script: |
+    python -m twine upload -r <FEED_NAME> --config-file $(PYPIRC_PATH) dist/*.whl
+  displayName: 'Upload to feed'
