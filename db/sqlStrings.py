@@ -47,12 +47,7 @@ VALUES ('{0}', '{1}', '{2}', '{3}'
 )
 """
 
-getSensorDatapointsByID = \
-"""
-SELECT * FROM sensorData WHERE SENSORID = '{0}'
-"""
-
 getSensorDatapointsInOrderByID = \
 """
-SELECT * FROM sensorData WHERE SENSORID = '{0}' ORDER BY ENTRYNO DESC
+SELECT * FROM sensorData WHERE SENSORID = '{0}' ORDER BY ENTRYNO DESC LIMIT '{1}'
 """

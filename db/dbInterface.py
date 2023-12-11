@@ -57,28 +57,11 @@ class databaseInterface:
 
         self.__disconnect()
 
-    def getSensorDatapointsByID(self, id):
+    def getSensorDatapointsInOrderByID(self, id, limit = 5):
         self.__connect()
 
         res = []
-        cursor = self._conn.execute(sqlStr.getSensorDatapointsByID.format(id))
-
-        for datapoint in cursor:
-            res.append(datapoint)
-        
-        self.__disconnect()
-
-        # returns a list of tuples, each tuple holds a sensor data point pertaining to 'id'
-        # 1st param in tuple: datapoint counter
-        # 2nd param in tuple: sensorid/name
-        # 3-5th params are: temp, humidity, pressure
-        return res
-    
-    def getSensorDatapointsInOrderByID(self, id):
-        self.__connect()
-
-        res = []
-        cursor = self._conn.execute(sqlStr.getSensorDatapointsInOrderByID.format(id))
+        cursor = self._conn.execute(sqlStr.getSensorDatapointsInOrderByID.format(id, limit))
 
         for datapoint in cursor:
             res.append(datapoint)

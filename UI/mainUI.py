@@ -21,7 +21,7 @@ class gui(ctk.CTk):
 
     def __eventHandler(self, e):
         # update gui
-        self.after(100)
+        self.after(500)
 
     def __setupWindow(self):
         # var
