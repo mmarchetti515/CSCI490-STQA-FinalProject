@@ -1,0 +1,45 @@
+# Python package
+# Create and test a Python package on multiple Python versions.
+# Add steps that analyze code, save the dist with the build record, publish to a PyPI-compatible index, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/python
+
+trigger:
+- develop
+
+pool:
+  vmImage: windows-latest
+strategy:
+  matrix:
+    Python311:
+      python.version: '3.11'
+    Python312:
+      python.version: '3.12'
+
+steps:
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '$(python.version)'
+  displayName: 'Use Python $(python.version)'
+
+- script: |
+    python -m pip install --upgrade pip
+    pip install -r requirements.txt
+  displayName: 'Install dependencies'
+
+- script: |
+    pip install build
+    pip install twine
+  displayName: 'Install build and twine'
+
+- script: |
+    python -m build -w
+  displayName: 'Python build'
+
+- task: TwineAuthenticate@1
+  inputs:
+    artifactFeed: <CSCI490FinalProject/DesktopAppDistro>
+  displayName: 'Twine Authenticate'
+
+- script: |
+    python -m twine upload -r <FEED_NAME> --config-file $(PYPIRC_PATH) dist/*.whl
+  displayName: 'Upload to feed'

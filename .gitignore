@@ -9,3 +9,5 @@
 
 # Ignore files ending in .db in any directory
 *.db
+.vscode/launch.json
+.vscode/tasks.json

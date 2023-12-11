@@ -1,6 +1,7 @@
 import customtkinter         as ctk
 import CTkTable              as ctkT
 from tkinter import messagebox
+from tkinter import IntVar
 from   db import dbInterface as db
 import socket
 import struct
@@ -14,8 +15,9 @@ class tabFrame(ctk.CTkFrame):
 
         self.db = db.databaseInterface()
 
-        self.configureView = None
-        self.dataView      = None
+        self.configureView     = None
+        self.dataView          = None
+        self.edgeProcessorView = None
 
         self.__setupWindow()
         self.__createObjects()
@@ -29,9 +31,11 @@ class tabFrame(ctk.CTkFrame):
         self.tabView = ctk.CTkTabview(master = self)
         self.tabView.add("Configure")
         self.tabView.add("View Data")
+        self.tabView.add("Edge Processor")
 
-        self.configureView = configureviewHandler(self.tabView.tab("Configure"), self.db)
-        self.dataView      =      viewdataHandler(self.tabView.tab("View Data"), self.db)
+        self.configureView     =      configureviewHandler(self.tabView.tab("Configure"), self.db)
+        self.dataView          =           viewdataHandler(self.tabView.tab("View Data"), self.db)
+        self.edgeProcessorView =          edgeprocessorHandler(self.tabView.tab("Edge Processor"))
 
         self.tabView.configure(command = lambda: self.__tabCallback(self.tabView.get()))
 
@@ -495,3 +499,95 @@ class viewdataHandler:
             temp[3] += "\nAvg: " + str(pAvg) + " hPa"
 
             self._dataView.edit_row(idx, temp)
+
+class edgeprocessorHandler:
+    # dbObj probably not even needed
+    def __init__(self, edgeprocessorTab): 
+        self.ept = edgeprocessorTab
+
+        # objects init
+        self._edgeDataView        = None
+        self._subFrame            = None
+        self._addStatChoiceList   = None
+
+        # radio button frame init
+        self.radio_var = IntVar(value=0)
+
+        # main setup on tab click
+        self.__setupFrame()
+        # base frame sizing issues so create new frame in left side
+        # _subframe setup and such
+        self.__setupSubFrame()
+        self.__createObjects()
+        self.__drawObjects()
+
+    def __createObjects(self):
+        # init values
+        self._tableHeaders = [["Device Name", "Temperature", "Humidity", "Pressure"]]
+        self._guideBoxText = "Help text\nUse the tools on this page to pull values computed by the edge processors gathered over a period of 5 minutes. You may choose to compute the 5 minute avergae, 5 minute high, or the 5 minute low. This reduces strain on the local system and does not use the database."
+
+        self._edgeDataView      = ctkT.CTkTable(master = self.ept,
+                                           column = 3,
+                                           corner_radius=8,
+                                           hover_color='#a8a8a8',
+                                           color_phase="horizontal",
+                                           colors=['#4a4a4a', '#737373'],
+                                           header_color='#2b2b2b',
+                                           values = self._tableHeaders)
+        
+        self._addGuideBox       = ctk.CTkTextbox(master = self.ept,
+                                            corner_radius= 8,
+                                            width=400,
+                                            wrap='word',
+                                            font = ("Inter", 13),
+                                            height = 200)
+        
+        self._addStatChoiceList = ctk.CTkRadioButton
+
+        # Radio button group
+        self.radiobutton_frame  = ctk.CTkFrame(master = self.ept)
+
+        self._radioButton_1     = ctk.CTkRadioButton(master=self.radiobutton_frame,
+                                                     variable=self.radio_var,
+                                                     text="Average",
+                                                     value=1)
+        
+        self._radioButton_2     = ctk.CTkRadioButton(master=self.radiobutton_frame,
+                                                     variable=self.radio_var,
+                                                     text="High", 
+                                                     value=2)
+        
+        self._radioButton_3     = ctk.CTkRadioButton(master=self.radiobutton_frame,
+                                                     variable=self.radio_var,
+                                                     text="Low", 
+                                                     value=3)
+        
+    def __drawObjects(self):
+        self._edgeDataView.grid(row = 1, column = 1, sticky = "NE")
+
+        # _subFrame 
+        self._subFrame.grid(row = 1, column = 0, sticky = "nsew")
+
+        self._addGuideBox.grid(row = 1, column = 0, sticky = "NSEW", padx = 20)
+        
+        # Radio button group
+        self.radiobutton_frame.grid(row=1, column=3, padx=(20, 20), pady=(20, 0), sticky="nsew")
+        self._radioButton_1.grid(row=1, column=2, pady=10, padx=20, sticky="n")
+        self._radioButton_2.grid(row=2, column=2, pady=10, padx=20, sticky="n")
+        self._radioButton_3.grid(row=3, column=2, pady=10, padx=20, sticky="n")
+
+        # populate the user guide text
+        self.__populateGuideBox()
+
+    def __setupFrame(self):
+        self.ept.grid_rowconfigure((0,2), weight = 1, uniform = "letterbox")
+        self.ept.grid_rowconfigure(    1, weight = 1)
+        
+        self.ept.grid_columnconfigure((0,1), weight = 1, uniform = "cvh")
+
+    def __setupSubFrame(self):
+        self._subFrame = ctk.CTkFrame(master = self.ept, fg_color = "transparent")
+        self._subFrame.grid_columnconfigure((0,1), weight = 1, uniform = "sfc")
+
+    def __populateGuideBox(self):
+        self._addGuideBox.insert("0.0", self._guideBoxText)
