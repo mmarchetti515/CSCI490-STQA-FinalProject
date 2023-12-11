@@ -5,7 +5,7 @@ from   db import dbInterface as db
 import socket
 import struct
 import threading               as th
-from   time                    import sleep
+from   time                    import sleep, sleep_ms
 
 class tabFrame(ctk.CTkFrame):
     def __init__(self, master, **kwargs): 
@@ -151,7 +151,7 @@ class configureviewHandler:
                                                  command     = self.__onRemoveSensorClick)
 
     def __drawObjects(self):
-        self._dataView.grid(row = 1, column = 1, sticky = "NE")
+        self._dataView.grid(row = 1, column = 1, sticky = "EW")
 
         # _subFrame 
         self._subFrame.grid(row = 1, column = 0, sticky = "nsew")
@@ -203,7 +203,7 @@ class configureviewHandler:
 
     def __setupFrame(self):
         self.ct.grid_rowconfigure((0,2), weight = 1, uniform = "letterbox")
-        self.ct.grid_rowconfigure(    1, weight = 1)
+        self.ct.grid_rowconfigure(    1, weight = 2)
         
         self.ct.grid_columnconfigure((0,1), weight = 1, uniform = "cvh")
     
@@ -256,12 +256,17 @@ class viewdataHandler:
         # "Prime" initial num of sensors in db
         self._numOfSensors = len(self.db.getEndpoints())
 
-        self._dataView        = None
-        self._startStopButton = None
+        self._dataView         = None
+        self._startStopButton  = None
+        self._intervalHEntry   = None
+        self._pollingRateEntry = None
 
         # "Prime" the thread
         self._loopThread      = th.Thread(target = self.__dataLoop, daemon = True) 
         self._keepThreadAlive = False
+
+        self._pollingInterval = 0 # Default: 60 seconds polling
+        self._intervalHLength = 0 # Default: Average based on last 5 values
 
         self.__setupFrame()
         self.__createObjects()
@@ -288,11 +293,34 @@ class viewdataHandler:
         self._dataView       = ctkT.CTkTable(master = self.vd,
                                              row    = 1,
                                              column = 4,
-                                             values = [["Sensor","Temp","Humidity","Pressure"]])
+                                             corner_radius=8,
+                                             hover_color='#a8a8a8',
+                                             color_phase="horizontal",
+                                             colors=['#4a4a4a', '#737373'],
+                                             header_color='#2b2b2b',
+                                             values = [["Sensor","Temp","Humidity","Pressure"]],
+                                             font = ("Inter", 15, "bold"))
         
+        self._pollingRateLabel  = ctk.CTkLabel(master       = self.vd,
+                                              text         = "Polling Rate (ms)",
+                                              font         = ("Inter", 12.5, "bold"))
+        self._pollingRateEntry = ctk.CTkEntry(master       = self.vd,
+                                              width        = 200,
+                                              height       = 30,
+                                              border_width = 2,
+                                              placeholder_text = "60000")
+
+        self._intervalHLabel   = ctk.CTkLabel(master       = self.vd,
+                                              text         = "History Length (points)",
+                                              font         = ("Inter", 12.5, "bold")) 
+        self._intervalHEntry   = ctk.CTkEntry(master       = self.vd,
+                                              width        = 200,
+                                              height       = 30,
+                                              border_width = 2,
+                                              placeholder_text = "5")
 
         self._startStopButton = ctk.CTkButton (master      = self.vd,
-                                               width       = 150,
+                                               width       = 200,
                                                height      = 30,
                                                fg_color    = "#4E6AE7",
                                                hover_color = "#3E55B9",
@@ -303,13 +331,20 @@ class viewdataHandler:
         while (self._keepThreadAlive):
             print("DEBUG: [Line: utilsUI.py: class viewdataHandler] Thread: " + str(th.get_ident()))
             self.__getData() # debug disable for updating ui
+            self.__updateView()
             self._root.event_generate("<<threadEvent>>", when = "tail", state = 123)
 
-            sleep(3)
+            sleep_ms(self._pollingInterval)
             
     def __drawObjects(self):
-        self._dataView       .grid(row = 0, column = 0, sticky = "EW", padx = 10 , pady = 20)
-        self._startStopButton.grid(row = 1, column = 0, columnspan = 2)
+        self._dataView       .grid(row = 0, column = 0, columnspan = 2, sticky = "EW", padx = 10 , pady = 20)
+
+        self._pollingRateLabel.grid(row = 1, column = 0, sticky = "SE", padx = 20)
+        self._pollingRateEntry.grid(row = 2, column = 0, sticky = "NE", padx = 20, pady = (0,10))
+        self._intervalHLabel.  grid(row = 1, column = 1, sticky = "SW", padx = 20)
+        self._intervalHEntry.  grid(row = 2, column = 1, sticky = "NW", padx = 20, pady = (0,10))
+
+        self._startStopButton.grid(row = 3, column = 0, columnspan = 2)
 
     def __getData(self):
         # 1: Get array of endpoints
@@ -352,12 +387,21 @@ class viewdataHandler:
             id          =  endpoint[0] 
             arr = pingEndpoint(id)
             self.db.addSensorData(id, arr[0], arr[1], arr[2])
-            print(id, arr[0], arr[1], arr[2])
 
         self._startStopButton.configure(state = "normal")
     
     def __onButtonClick(self):
         if (self._startStopButton.cget("text") == "Start" and not self._loopThread.is_alive()): 
+            if (self._intervalHEntry.get() == ""):
+                self._intervalHLength = 5
+            else:
+                self._intervalHLength = int(self._intervalHEntry.get())
+
+            if (self._pollingRateEntry.get() == ""):
+                self._pollingInterval = 60000
+            else:
+                self._pollingInterval = int(self._pollingRateEntry.get());
+            
             self._startStopButton.configure(text = "Stop")
             self._keepThreadAlive = True
             self._loopThread.start()
@@ -382,9 +426,6 @@ class viewdataHandler:
             for index, endpoint in enumerate(res):
                 self._dataView.add_row([endpoint[0], "N/A", "N/A", "N/A", "N/A"], index+1)
 
-
-        
-
     def __resetThread(self): 
         self._loopThread = None
         self._loopThread = th.Thread(target = self.__dataLoop, daemon = True)  
@@ -392,5 +433,65 @@ class viewdataHandler:
     def __setupFrame(self):
         self.vd.grid_rowconfigure(0, weight = 5)
         self.vd.grid_rowconfigure(1, weight = 1)
+        self.vd.grid_rowconfigure(2, weight = 1)
+        self.vd.grid_rowconfigure(3, weight = 1)
 
-        self.vd.grid_columnconfigure(0, weight = 1)
+        self.vd.grid_columnconfigure((0, 1), weight = 1)
+    
+
+    def __updateView(self):
+        # By this point we have the number of sensors
+
+        # How do we associate each data set organized by sensor ID 
+        # in the ctkTable which has no general organization by nature
+        #   - We know the number of sensors in the ctkTable,
+        #   - So this gives us a number of indices to iterate through
+        #   - Lib allows us to pull data per indices -> THIS will be our way to access our sensor ID <=> KEY
+        #   - Our 'map' is [id,temp,humidity,pressure]
+        for idx in range(1, self._numOfSensors+1):
+            # get the (sensor ID/sensor Name/KEY)
+            key = self._dataView.get_row(idx)[0]
+
+            # request the data for the key
+            # db api allows us to provide a threshold for how max most recent datapoints to request
+            arr = self.db.getSensorDatapointsInOrderByID(key, self._intervalHLength)
+
+            print(arr)
+
+            # extract the data we want for the most recent datapoint
+            temp    = arr[0][1:5]
+
+            temp    = list(temp)
+            temp[1] = "Current: " + str(temp[1]) + " C"
+            temp[2] = "Current: " + str(temp[2]) + " %"
+            temp[3] = "Current: " + str(temp[3]) + " hPa"
+
+            tAvg = 0.0
+            hAvg = 0.0
+            pAvg = 0.0
+
+            if (len(arr) < self._intervalHLength):
+                for i in range(len(arr)):
+                    tAvg += arr[i][2]
+                    hAvg += arr[i][3]
+                    pAvg += arr[i][4]
+
+                tAvg = round(tAvg/len(arr), 2)
+                hAvg = round(hAvg/len(arr), 2)
+                pAvg = round(pAvg/len(arr), 2)
+            
+            elif (len(arr) >= self._intervalHLength):
+                for i in range(0,self._intervalHLength):
+                    tAvg += arr[i][2]
+                    hAvg += arr[i][3]
+                    pAvg += arr[i][4]
+
+                tAvg = round(tAvg/self._intervalHLength, 2)
+                hAvg = round(hAvg/self._intervalHLength, 2)
+                pAvg = round(pAvg/self._intervalHLength, 2)
+
+            temp[1] += "\nAvg: " + str(tAvg) + " C"
+            temp[2] += "\nAvg: " + str(hAvg) + " %"
+            temp[3] += "\nAvg: " + str(pAvg) + " hPa"
+
+            self._dataView.edit_row(idx, temp)
