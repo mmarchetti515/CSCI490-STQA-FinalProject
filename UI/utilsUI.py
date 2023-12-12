@@ -6,7 +6,7 @@ from   db import dbInterface as db
 import socket
 import struct
 import threading               as th
-from   time                    import sleep, sleep_ms
+from   time                    import sleep
 
 class tabFrame(ctk.CTkFrame):
     def __init__(self, master, **kwargs): 
@@ -306,13 +306,13 @@ class viewdataHandler:
                                              font = ("Inter", 15, "bold"))
         
         self._pollingRateLabel  = ctk.CTkLabel(master       = self.vd,
-                                              text         = "Polling Rate (ms)",
+                                              text         = "Polling Rate (s)",
                                               font         = ("Inter", 12.5, "bold"))
         self._pollingRateEntry = ctk.CTkEntry(master       = self.vd,
                                               width        = 200,
                                               height       = 30,
                                               border_width = 2,
-                                              placeholder_text = "60000")
+                                              placeholder_text = "60")
 
         self._intervalHLabel   = ctk.CTkLabel(master       = self.vd,
                                               text         = "History Length (points)",
@@ -338,7 +338,7 @@ class viewdataHandler:
             self.__updateView()
             self._root.event_generate("<<threadEvent>>", when = "tail", state = 123)
 
-            sleep_ms(self._pollingInterval)
+            sleep(self._pollingInterval)
             
     def __drawObjects(self):
         self._dataView       .grid(row = 0, column = 0, columnspan = 2, sticky = "EW", padx = 10 , pady = 20)
@@ -402,7 +402,7 @@ class viewdataHandler:
                 self._intervalHLength = int(self._intervalHEntry.get())
 
             if (self._pollingRateEntry.get() == ""):
-                self._pollingInterval = 60000
+                self._pollingInterval = 60
             else:
                 self._pollingInterval = int(self._pollingRateEntry.get());
             
@@ -506,12 +506,12 @@ class edgeprocessorHandler:
         self.ept = edgeprocessorTab
 
         # objects init
-        self._edgeDataView        = None
-        self._subFrame            = None
-        self._addStatChoiceList   = None
+        self._edgeDataView         = None
+        self._subFrame             = None
+        self._statChoiceListButton = None
 
         # radio button frame init
-        self.radio_var = IntVar(value=0)
+        self._statChoiceListSelection = IntVar(self.ept)
 
         # main setup on tab click
         self.__setupFrame()
@@ -526,41 +526,47 @@ class edgeprocessorHandler:
         self._tableHeaders = [["Device Name", "Temperature", "Humidity", "Pressure"]]
         self._guideBoxText = "Help text\nUse the tools on this page to pull values computed by the edge processors gathered over a period of 5 minutes. You may choose to compute the 5 minute avergae, 5 minute high, or the 5 minute low. This reduces strain on the local system and does not use the database."
 
-        self._edgeDataView      = ctkT.CTkTable(master = self.ept,
-                                           column = 3,
-                                           corner_radius=8,
-                                           hover_color='#a8a8a8',
-                                           color_phase="horizontal",
-                                           colors=['#4a4a4a', '#737373'],
-                                           header_color='#2b2b2b',
-                                           values = self._tableHeaders)
+        self._edgeDataView         = ctkT.CTkTable(master = self.ept,
+                                                   column = 3,
+                                                   corner_radius=8,
+                                                   hover_color='#a8a8a8',
+                                                   color_phase="horizontal",
+                                                   colors=['#4a4a4a', '#737373'],
+                                                   header_color='#2b2b2b',
+                                                   values = self._tableHeaders)
         
-        self._addGuideBox       = ctk.CTkTextbox(master = self.ept,
-                                            corner_radius= 8,
-                                            width=400,
-                                            wrap='word',
-                                            font = ("Inter", 13),
-                                            height = 200)
-        
-        self._addStatChoiceList = ctk.CTkRadioButton
+        self._addGuideBox          = ctk.CTkTextbox(master = self.ept,
+                                                    corner_radius= 8,
+                                                    width=400,
+                                                    wrap='word',
+                                                    font = ("Inter", 13),
+                                                    height = 200)
 
         # Radio button group
-        self.radiobutton_frame  = ctk.CTkFrame(master = self.ept)
+        self.radiobutton_frame     = ctk.CTkFrame(master = self.ept)
 
-        self._radioButton_1     = ctk.CTkRadioButton(master=self.radiobutton_frame,
-                                                     variable=self.radio_var,
-                                                     text="Average",
-                                                     value=1)
+        self._radioButton_1        = ctk.CTkRadioButton(master=self.radiobutton_frame,
+                                                        variable=self._statChoiceListSelection,
+                                                        text="Average",
+                                                        value=1)
         
-        self._radioButton_2     = ctk.CTkRadioButton(master=self.radiobutton_frame,
-                                                     variable=self.radio_var,
-                                                     text="High", 
-                                                     value=2)
+        self._radioButton_2        = ctk.CTkRadioButton(master=self.radiobutton_frame,
+                                                        variable=self._statChoiceListSelection,
+                                                        text="High", 
+                                                        value=2)
         
-        self._radioButton_3     = ctk.CTkRadioButton(master=self.radiobutton_frame,
-                                                     variable=self.radio_var,
-                                                     text="Low", 
-                                                     value=3)
+        self._radioButton_3        = ctk.CTkRadioButton(master=self.radiobutton_frame,
+                                                        variable=self._statChoiceListSelection,
+                                                        text="Low", 
+                                                        value=3)
+        
+        self._statChoiceListButton = ctk.CTkButton(master=self.ept,
+                                                   text="Request",
+                                                   width=100,
+                                                   height=25,
+                                                   fg_color="#4E6AE7",
+                                                   hover_color="#3E55B9",
+                                                   command=self.__onstatChoiceListClick)
         
     def __drawObjects(self):
         self._edgeDataView.grid(row = 1, column = 1, sticky = "NE")
@@ -571,10 +577,12 @@ class edgeprocessorHandler:
         self._addGuideBox.grid(row = 1, column = 0, sticky = "NSEW", padx = 20)
         
         # Radio button group
-        self.radiobutton_frame.grid(row=1, column=3, padx=(20, 20), pady=(20, 0), sticky="nsew")
+        self.radiobutton_frame.grid(row=1, column=3, padx=(20, 20), pady=(20, 20), sticky="sew")
         self._radioButton_1.grid(row=1, column=2, pady=10, padx=20, sticky="n")
         self._radioButton_2.grid(row=2, column=2, pady=10, padx=20, sticky="n")
         self._radioButton_3.grid(row=3, column=2, pady=10, padx=20, sticky="n")
+
+        self._statChoiceListButton.grid(row = 2, column = 3, sticky = "N", padx = 20)
 
         # populate the user guide text
         self.__populateGuideBox()
@@ -591,3 +599,9 @@ class edgeprocessorHandler:
 
     def __populateGuideBox(self):
         self._addGuideBox.insert("0.0", self._guideBoxText)
+
+    def __onstatChoiceListClick(self):
+        if self._statChoiceListSelection != 0:
+            print("you selected a value", self._statChoiceListSelection)
+        else:
+            print("something happened oh no uwu", self._statChoiceListSelection)
