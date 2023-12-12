@@ -1,7 +1,7 @@
 # imports
-from   bme680  import *
-from   machine import SPI, I2C, Pin
-from   queue   import Queue
+from   bme680   import *
+from   machine  import SPI, I2C, Pin
+import queue as Queue
 import time
 import network
 import socket 
@@ -9,6 +9,7 @@ import machine
 import struct
 import htmlStrings as hS
 import re
+import uasyncio
 
 class i2cComm:
     def __init__(self):
@@ -82,6 +83,14 @@ class spiComm:
         self.histCorruptMsg = "History data corrupted, clearing all history..."
         self.histEmptyMsg   = "History data not available, please wait and try again..."
 
+        # we can safely assume that a pico and sensor would likely not be used under such conditions 
+        self._curHighTmp         = -9999
+        self._curLowTmp          = -9999
+        self._curHighHum         = -9999
+        self._curLowHum          = -9999
+        self._curHighPrs         = -9999
+        self._curLowPrs          = -9999
+
     def returnData(self):
         self._getData()
         print("returnData: DEBUG\ntemp = {x}\nhumidity = {y}\npressure = {z}".format(x=self.temp, y = self.humidity, z = self.pressure))
@@ -89,48 +98,98 @@ class spiComm:
 
     def _saveToHistory(self):
         _getData()
+
+        # == save to temperature history == #
+
+        # pop the oldest data point from the queue
         if self._temperatureHistory.full():
-            # pop the oldest data point from the queue
             self._temperatureHistory.get()
+        # check if new high or low
+        if self.temp > curTmpHigh or curTmpHigh == -9999:
+            curTmpHigh = self.temp
+        if self.temp < curTmpLow or curTmpLow == -9999:
+            curTmpLow = self.temp
         self._temperatureHistory.put(self.temp)
 
+
+        # == save to humidity history == #
+
+        # pop the oldest data point from the queue
         if self._humidityHistory.full():
-            # pop the oldest data point from the queue
             self._humidityHistory.get()
+        # check if new high or low
+        if self.humidity > curHumHigh or curHumHigh == -9999:
+            curHumHigh = self.humidity
+        if self.humidity < curHumLow or curHumLow == -9999:
+            curhumLow = self.humidity
         self._humidityHistory.put(self.humidity)
 
+        # == save to pressure history == #
+
+        # pop the oldest data point from the queue
         if self._pressureHistory.full():
-            # pop the oldest data point from the queue
             self._pressureHistory.get()
+        # check if new high or low
+        if self.pressure > curPrsHigh or curPrsHigh == -9999:
+            curTmpHigh = self.pressure
+        if self.pressure < curPrsLow or curPrsLow == -9999:
+            curPrsLow = self.pressure
         self._pressureHistory.put(self.pressure)
+
+    def _getAvgsFromHistory(self):
+        tempHistSize = self._temperatureHistory.qsize()
+        humHistSize  = self._humidityHistory.qsize()
+        presHistSize = self._pressureHistory.qsize()
+        # Ensure that all queues are of equal size. If they are not, there has been some corruption
+        # in the data gathering process
+        if tempHistSize == humHistSize == presHistSize:
+            numVals = tempHistSize
+            tmpAvg = (sum(self._temperatureHistory)) / numVals
+            humAvg = (sum(self._humidityHistory))    / numVals
+            prsAvg = (sum(self._pressureHistory))    / numVals
+            return [tmpAvg, humAvg, prsAvg]
+        # queues haven't been filled yet
+        elif {tempHistSize, humHistSize, presHistSize} == 0:
+            print(self.histEmptyMsg)
+            return -1
+        # corruption has occurred
+        else:
+            print(self.histCorruptMsg)
+            return -1
 
     def _getHighsFromHistory(self):
         tempHistSize = self._temperatureHistory.qsize()
         humHistSize  = self._humidityHistory.qsize()
-        presHistSize = self._pressureHistory()
+        presHistSize = self._pressureHistory.qsize()
+        # Ensure that all queues are of equal size. If they are not, there has been some corruption
+        # in the data gathering process
         if tempHistSize == humHistSize == presHistSize:
-            
-            
-            
-            
-            #### =========== LEFT OFF HERE ============= ####
-            
-
-
-
-
+            return [self.curTmpHigh, self.curHumHigh, self.curPrsHigh]
+        # queues haven't been filled yet
         elif {tempHistSize, humHistSize, presHistSize} == 0:
             print(self.histEmptyMsg)
-            return
+            return -1
+        # corruption has occurred
         else:
             print(self.histCorruptMsg)
-            return
-
-    def _getAvgsFromHistory(self):
-        numVals = 
-        # for the avg --> numVals = tempHistSize \n (sum(self._temperatureHistory))
+            return -1
+            
     def _getLowsFromHistory(self):
-        numVals = 
+        tempHistSize = self._temperatureHistory.qsize()
+        humHistSize  = self._humidityHistory.qsize()
+        presHistSize = self._pressureHistory.qsize()
+        # Ensure that all queues are of equal size. If they are not, there has been some corruption
+        # in the data gathering process
+        if tempHistSize == humHistSize == presHistSize:
+            return [self.curTmpLow, self.curHumLow, self.curPrsLow]
+        # queues haven't been filled yet
+        elif {tempHistSize, humHistSize, presHistSize} == 0:
+            print(self.histEmptyMsg)
+            return -1
+        # corruption has occurred
+        else:
+            print(self.histCorruptMsg)
+            return -1
 
     # private
     def _getData(self):
@@ -324,12 +383,23 @@ class serverNode:
 
         print(f"Server listening on {self._serverIP}:{self._socketPort}")
 
+    async def __gatherData(self):
+        while true:
+            # num seconds between data gather
+            interval = 10
+            print("data being gathered - current interval... ", interval)
+            # sleep for designated interval
+            await uasyncio.sleep(interval)
+
     def __mainLoop(self):
         # init parent server socket to wait for new client connections: retains overall server life
         self.__createServerSocket()
 
         # retain server socket -> renew client socket type beat
         while (True):
+            # begin gathering data 
+            await self.__gatherData()
+
             # wait for a client to request
             clientSocket, clientAddress = self.__createClientInstanceSocket()
 
@@ -357,7 +427,10 @@ class serverNode:
 
             elif (request.lower() == "hih"):
                 print("hih (high) request received: retrieving sensor readings...")
-
+                sensorArrayData1 = self._spiObject._getHighsFromHistory()
+                print("sending data...")
+                packedData1 = struct.pack("<3d", *sensorArrayData1)
+                clientSocket.send(packedData1)
 
                 # close socket so it doesn't stay open for no reason
                 print("resetting...\n---------\n")
@@ -365,7 +438,10 @@ class serverNode:
 
             elif (request.lower() == "avg"):
                 print("avg request received: retrieving sensor readings...")
-
+                sensorArrayData2 = self._spiObject._getAvgsFromHistory()
+                print("sending data...")
+                packedData2 = struct.pack("<3d", *sensorArrayData2)
+                clientSocket.send(packedData2)
 
                 # close socket so it doesn't stay open for no reason
                 print("resetting...\n---------\n")
@@ -373,7 +449,10 @@ class serverNode:
 
             elif (request.lower() == "low"):
                 print("low request received: retrieving sensor readings...")
-
+                sensorArrayData3 = self._spiObject._getLowsFromHistory()
+                print("sending data...")
+                packedData3 = struct.pack("<3d", *sensorArrayData3)
+                clientSocket.send(packedData3)
 
                 # close socket so it doesn't stay open for no reason
                 print("resetting...\n---------\n")
@@ -387,4 +466,4 @@ def main():
     s.runServer()
 
 if __name__ == "__main__":
-    main()
+    uasyncio.run(main())
