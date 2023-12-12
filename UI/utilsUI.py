@@ -527,7 +527,7 @@ class edgeprocessorHandler:
         self._guideBoxText = "Help text\nUse the tools on this page to pull values computed by the edge processors gathered over a period of 5 minutes. You may choose to compute the 5 minute avergae, 5 minute high, or the 5 minute low. This reduces strain on the local system and does not use the database."
 
         self._edgeDataView         = ctkT.CTkTable(master = self.ept,
-                                                   column = 3,
+                                                   column = 4,
                                                    corner_radius=8,
                                                    hover_color='#a8a8a8',
                                                    color_phase="horizontal",
@@ -537,9 +537,9 @@ class edgeprocessorHandler:
         
         self._addGuideBox          = ctk.CTkTextbox(master = self.ept,
                                                     corner_radius= 8,
-                                                    width=400,
+                                                    width=350,
                                                     wrap='word',
-                                                    font = ("Inter", 13),
+                                                    font = ("Inter", 15),
                                                     height = 200)
 
         # Radio button group
@@ -582,7 +582,7 @@ class edgeprocessorHandler:
         self._radioButton_2.grid(row=2, column=2, pady=10, padx=20, sticky="n")
         self._radioButton_3.grid(row=3, column=2, pady=10, padx=20, sticky="n")
 
-        self._statChoiceListButton.grid(row = 2, column = 3, sticky = "N", padx = 20)
+        self._statChoiceListButton.grid(row = 2, column = 3, sticky = "new", padx = 20)
 
         # populate the user guide text
         self.__populateGuideBox()
