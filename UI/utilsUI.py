@@ -1,12 +1,12 @@
 import customtkinter         as ctk
 import CTkTable              as ctkT
 from tkinter import messagebox
-from tkinter import IntVar
+from tkinter import IntVar, BooleanVar
 from   db import dbInterface as db
 import socket
 import struct
 import threading               as th
-from   time                    import sleep, sleep_ms
+from   time                    import sleep
 
 class tabFrame(ctk.CTkFrame):
     def __init__(self, master, **kwargs): 
@@ -257,13 +257,46 @@ class viewdataHandler:
         # this class will be accessing the db
         self.db = dbObj
 
+        # list of states for data acq
+        self._possibleStates = [ 
+            0, # no metric selected, error
+            1, # Temp & Humidity   Temperature
+            2, # Temp & Pressure   Humidity
+            3, # Humidity & Pressure Temperature, Humidity
+            4, # Temperature       Presus
+            5, # Humidity
+            6, # Pressure 
+            7  # Temp, Humidity, Pressure
+        ]
+        self._currentState = None
+
         # "Prime" initial num of sensors in db
         self._numOfSensors = len(self.db.getEndpoints())
 
-        self._dataView         = None
-        self._startStopButton  = None
-        self._intervalHEntry   = None
-        self._pollingRateEntry = None
+        self._dataView         = None 
+        self._startStopButton  = None 
+        self._pollingRateLabel = None 
+        self._pollingRateEntry = None 
+
+        self._extraDataLabel    = None 
+        self._extraDataOptionsF = None 
+        self._extraVariable     = IntVar(master = self.vd, value = 4)
+        self._extraAvg          = None
+        self._extraHigh         = None
+        self._extraLow          = None
+        self._extraNone         = None 
+
+        self._whichVariableLabel = None
+        self._whichVariableFrame = None
+        self._whichTempOpt       = None
+        self._whichHumidOpt      = None
+        self._whichPressOpt      = None
+        self._whichTempVar       = BooleanVar(master = self.vd, value = 0)
+        self._whichHumidVar      = BooleanVar(master = self.vd, value = 0)
+        self._whichPressVar      = BooleanVar(master = self.vd, value = 0)
+
+        self._dataOptionLabel   = None # label 
+        self._dataOptionToGetF  = None # entity - Frame
 
         # "Prime" the thread
         self._loopThread      = th.Thread(target = self.__dataLoop, daemon = True) 
@@ -272,7 +305,7 @@ class viewdataHandler:
         self._pollingInterval = 0 # Default: 60 seconds polling
         self._intervalHLength = 0 # Default: Average based on last 5 values
 
-        self.__setupFrame()
+        self.__setupFrames()
         self.__createObjects()
         self.__drawObjects()
         self.__populateDataView()
@@ -306,7 +339,7 @@ class viewdataHandler:
                                              font = ("Inter", 15, "bold"))
         
         self._pollingRateLabel  = ctk.CTkLabel(master       = self.vd,
-                                              text         = "Polling Rate (ms)",
+                                              text         = "Polling Rate (ms)", 
                                               font         = ("Inter", 12.5, "bold"))
         self._pollingRateEntry = ctk.CTkEntry(master       = self.vd,
                                               width        = 200,
@@ -314,22 +347,60 @@ class viewdataHandler:
                                               border_width = 2,
                                               placeholder_text = "60000")
 
-        self._intervalHLabel   = ctk.CTkLabel(master       = self.vd,
-                                              text         = "History Length (points)",
-                                              font         = ("Inter", 12.5, "bold")) 
-        self._intervalHEntry   = ctk.CTkEntry(master       = self.vd,
-                                              width        = 200,
-                                              height       = 30,
-                                              border_width = 2,
-                                              placeholder_text = "5")
+        self._extraDataLabel = ctk.CTkLabel(master  = self.vd,
+                                            text    = "Data Choice List (Optional)",
+                                            font    = ("Inter", 12.5, "bold"),
+                                            justify = "center")
+        self._extraDataOptionsF = ctk.CTkFrame(master = self.vd,
+                                               width  = 1,
+                                               height = 1)
+        self._extraAvg  = ctk.CTkRadioButton(master   = self._extraDataOptionsF,
+                                             variable = self._extraVariable,
+                                             text     = "Average",
+                                             value    = 1)
+        self._extraHigh = ctk.CTkRadioButton(master   = self._extraDataOptionsF,
+                                             variable =  self._extraVariable,
+                                             text     = "High",
+                                             value    = 2)
+        self._extraLow  = ctk.CTkRadioButton(master   = self._extraDataOptionsF,
+                                             variable = self._extraVariable,
+                                             text     = "Low",
+                                             value    = 3) 
+        self._extraNone = ctk.CTkRadioButton(master   = self._extraDataOptionsF,
+                                             variable = self._extraVariable,
+                                             text     = "None",
+                                             value    = 4) 
 
-        self._startStopButton = ctk.CTkButton (master      = self.vd,
-                                               width       = 200,
-                                               height      = 30,
-                                               fg_color    = "#4E6AE7",
-                                               hover_color = "#3E55B9",
-                                               text        = "Start",
-                                               command     = self.__onButtonClick)
+        self._whichVariableLabel = ctk.CTkLabel(master = self.vd,
+                                                text = "Sensor Types",
+                                                font = ("Inter", 12.5, "bold"),
+                                                justify = "center")
+        self._whichVariableF     = ctk.CTkFrame(master = self.vd,
+                                                width  = 1,
+                                                height = 1)
+        self._whichTempOpt       = ctk.CTkCheckBox(master   = self._whichVariableF,
+                                                   variable = self._whichTempVar,
+                                                   text     = "Temperature",
+                                                   onvalue  = 1,
+                                                   offvalue = 0)
+        self._whichHumidOpt      = ctk.CTkCheckBox(master   = self._whichVariableF,
+                                                   variable =  self._whichHumidVar,
+                                                   text     = "Humidity",
+                                                   onvalue  = 1,
+                                                   offvalue = 0)
+        self._whichPressOpt      = ctk.CTkCheckBox(master   = self._whichVariableF,
+                                                   variable = self._whichPressVar,
+                                                   text     = "Pressure",
+                                                   onvalue  = 1,
+                                                   offvalue = 0) 
+
+        self._startStopButton    = ctk.CTkButton(master      = self.vd,
+                                                 width       = 200,
+                                                 height      = 30,
+                                                 fg_color    = "#4E6AE7",
+                                                 hover_color = "#3E55B9",
+                                                 text        = "Start",
+                                                 command     = self.__onButtonClick)
         
     def __dataLoop(self):
         while (self._keepThreadAlive):
@@ -338,44 +409,56 @@ class viewdataHandler:
             self.__updateView()
             self._root.event_generate("<<threadEvent>>", when = "tail", state = 123)
 
-            sleep_ms(self._pollingInterval)
-            
+            sleep(self._pollingInterval/1000) # floor
+    
+    def __defineOutMsg(self, prepend):
+        state = (self._whichTempVar << 2) | (self._whichHumidVar << 1) | (self._whichPressVar)
+
+        # no metric selected, error
+        if state == 0:
+            self._currentState = None
+        self._currentState = prepend + str(int(state))
+
     def __drawObjects(self):
-        self._dataView       .grid(row = 0, column = 0, columnspan = 2, sticky = "EW", padx = 10 , pady = 20)
+        self._dataView       .grid(row = 0, column = 0, columnspan = 5, sticky = "EW", padx = 10 , pady = 20)
 
-        self._pollingRateLabel.grid(row = 1, column = 0, sticky = "SE", padx = 20)
-        self._pollingRateEntry.grid(row = 2, column = 0, sticky = "NE", padx = 20, pady = (0,10))
-        self._intervalHLabel.  grid(row = 1, column = 1, sticky = "SW", padx = 20)
-        self._intervalHEntry.  grid(row = 2, column = 1, sticky = "NW", padx = 20, pady = (0,10))
+        self._pollingRateLabel.grid(row = 1, column = 2, sticky = "S", padx = 20)
+        self._pollingRateEntry.grid(row = 2, column = 2, sticky = "N", padx = 20, pady = (0,10))
 
-        self._startStopButton.grid(row = 3, column = 0, columnspan = 2)
+        self._extraDataLabel.grid(row = 1, column = 3, sticky = "SEW", columnspan = 1)
+        self._extraDataOptionsF.grid(row = 2, column = 3, padx = (0,10), sticky = "NSEW")
+        
+        self._extraAvg .grid(row = 0, column=2, pady=10, padx=20, sticky="n")
+        self._extraHigh.grid(row = 1, column=2, pady=10, padx=20, sticky="n")
+        self._extraLow .grid(row = 2, column=2, pady=10, padx=20, sticky="n")
+        self._extraNone.grid(row = 3, column=2, pady=10, padx=20, sticky="n")
+
+        self._whichVariableLabel.grid(row = 1, column = 1, sticky = "SEW", columnspan = 1)
+        self._whichVariableF.grid(row = 2, column = 1, padx = (0,10), sticky = "NSEW")
+        self._whichTempOpt.grid(row = 0, column=2, pady=10, padx=20, sticky="n")
+        self._whichHumidOpt.grid(row = 1, column=2, pady=10, padx=20, sticky="n")
+        self._whichPressOpt.grid(row = 2, column=2, pady=10, padx=20, sticky="n")
+
+        self._startStopButton.grid(row = 3, column = 0, columnspan = 5)
 
     def __getData(self):
         # 1: Get array of endpoints
         self._startStopButton.configure(state = "disabled")
         print("DEBUG: __getData(): class viewdataHandler Thread: " + str(th.get_ident()))
         endpoints = self.db.getEndpoints()
-        
+
         # ***** sub-functions ***** # 
         def pingEndpoint(id):
             clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             clientSocket.connect(socketTuple)
-
-            clientSocket.send("get".encode("utf-8")[:1024])
+            
+            clientSocket.send(self._outMsg.encode("utf-8")[:1024])
 
             # wait a sec to get response, kind of relieves latency pressure
             sleep(1)
 
             response = clientSocket.recv(1024)
 
-            if (len(response) == 24):
-                # little endian byte order + 3 doubles in byte streams
-                # [0]: Temp
-                # [1]: Humidity
-                # [2]: Pressure
-                unpackedData = struct.unpack("<3d", response)
-                
-                # WIP WIP WIP display data here UI stuff WIP WIP WIP
 
             clientSocket.close()
 
@@ -383,6 +466,7 @@ class viewdataHandler:
             humi = round(unpackedData[1], 2) # rel hum %
             pres = round(unpackedData[2], 2) # hPa
             return [temp, humi, pres]
+
             
 
         # 2: We have our endpoints 
@@ -393,14 +477,18 @@ class viewdataHandler:
             self.db.addSensorData(id, arr[0], arr[1], arr[2])
 
         self._startStopButton.configure(state = "normal")
-    
+        
     def __onButtonClick(self):
-        if (self._startStopButton.cget("text") == "Start" and not self._loopThread.is_alive()): 
-            if (self._intervalHEntry.get() == ""):
-                self._intervalHLength = 5
-            else:
-                self._intervalHLength = int(self._intervalHEntry.get())
+        if self._extraVariable == 1:
+            res = self.__defineOutMsg("Avg")
+        elif self._extraVariable == 2:
+            res = self.__defineOutMsg("High")
+        elif self._extraVariable == 3:
+            res = self.__defineOutMsg("Low")
+        elif self._extraVariable == 4:
+            res = self.__defineOutMsg("None")
 
+        if (self._startStopButton.cget("text") == "Start" and not self._loopThread.is_alive()): 
             if (self._pollingRateEntry.get() == ""):
                 self._pollingInterval = 60000
             else:
@@ -434,14 +522,13 @@ class viewdataHandler:
         self._loopThread = None
         self._loopThread = th.Thread(target = self.__dataLoop, daemon = True)  
     
-    def __setupFrame(self):
+    def __setupFrames(self):
         self.vd.grid_rowconfigure(0, weight = 5)
         self.vd.grid_rowconfigure(1, weight = 1)
         self.vd.grid_rowconfigure(2, weight = 1)
         self.vd.grid_rowconfigure(3, weight = 1)
 
-        self.vd.grid_columnconfigure((0, 1), weight = 1)
-    
+        self.vd.grid_columnconfigure((0, 1, 2, 3, 4), weight = 1, uniform = "dataCol")
 
     def __updateView(self):
         # By this point we have the number of sensors

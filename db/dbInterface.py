@@ -1,8 +1,8 @@
-# database shit
+# database
 import sqlite3 as s3
 import db.sqlStrings as sqlStr
 
-# warning no error checking, might not handle sqllite errors but fuck it
+# warning no error checking, might not handle sqllite errors
 class databaseInterface:
     def __init__(self):
         self._dbName = "data490.db"
