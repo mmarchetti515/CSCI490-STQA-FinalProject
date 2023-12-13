@@ -15,9 +15,9 @@ createSensorDataTable = \
 CREATE TABLE IF NOT EXISTS sensorData (
     ENTRYNO    INTEGER    PRIMARY KEY    AUTOINCREMENT,
     SENSORID   TEXT       NOT NULL,
-    TEMP       REAL       NOT NULL,
-    HUMIDITY   REAL       NOT NULL,
-    PRESSURE   REAL       NOT NULL,
+    TEMP       REAL,
+    HUMIDITY   REAL,
+    PRESSURE   REAL,
     FOREIGN KEY (SENSORID) REFERENCES sensorEndpoints(SENSORID)
 )
 """
